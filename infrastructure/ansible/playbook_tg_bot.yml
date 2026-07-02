@@ -1,0 +1,265 @@
+---
+- name: Deploy PostgreSQL Master
+  hosts: master_db
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Install PostgreSQL (Alpine)
+      apk:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - postgresql-client
+        state: present
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Install PostgreSQL (Debian/Ubuntu)
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - postgresql-client
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Create data directory with correct ownership
+      file:
+        path: /var/lib/postgresql/data
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+
+    - name: Init DB
+      command: su - postgres -c "initdb -D /var/lib/postgresql/data"
+      args:
+        creates: /var/lib/postgresql/data/PG_VERSION
+
+    - name: Configure postgresql.conf
+      lineinfile:
+        path: /var/lib/postgresql/data/postgresql.conf
+        regexp: "^{{ item.key }}"
+        line: "{{ item.key }} = {{ item.value }}"
+      loop:
+        - { key: 'wal_level', value: 'replica' }
+        - { key: 'max_wal_senders', value: '3' }
+        - { key: 'wal_keep_size', value: '64' }
+        - { key: 'listen_addresses', value: "'*'" }
+
+    - name: Configure pg_hba.conf
+      blockinfile:
+        path: /var/lib/postgresql/data/pg_hba.conf
+        block: |
+          host replication replicator 0.0.0.0/0 md5
+          host all all 0.0.0.0/0 md5
+
+    - name: Create /run/postgresql directory
+      file:
+        path: /run/postgresql
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Start PostgreSQL (Alpine) in background
+      shell: |
+        su - postgres -c "postgres -D /var/lib/postgresql/data > /var/lib/postgresql/data/logfile 2>&1 &"
+        sleep 3
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Start PostgreSQL service (Debian/Ubuntu)
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Wait for PostgreSQL to become ready (Alpine)
+      command: su - postgres -c "pg_isready -h localhost -p 5432"
+      register: pgready
+      until: pgready.rc == 0
+      retries: 20
+      delay: 2
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Create replication user
+      command: su - postgres -c "psql -U postgres -c \"CREATE USER replicator WITH REPLICATION LOGIN PASSWORD 'replpass';\""
+      ignore_errors: yes
+
+    - name: Create app DB and user
+      command: su - postgres -c "psql -U postgres -c \"CREATE DATABASE mydb;\" && psql -U postgres -c \"CREATE USER dbuser WITH PASSWORD 'dbpass';\" && psql -U postgres -c \"GRANT ALL PRIVILEGES ON DATABASE mydb TO dbuser;\""
+      ignore_errors: yes
+
+- name: Deploy PostgreSQL Replica
+  hosts: replica_db
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Install PostgreSQL (Alpine)
+      apk:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Install PostgreSQL (Debian/Ubuntu)
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Stop PostgreSQL (Alpine) if running
+      shell: pkill -u postgres postgres || true
+      when: ansible_facts['os_family'] == "Alpine"
+      ignore_errors: yes
+
+    - name: Stop PostgreSQL (Debian/Ubuntu)
+      service:
+        name: postgresql
+        state: stopped
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Remove old data
+      file:
+        path: /var/lib/postgresql/data
+        state: absent
+
+    - name: Base backup from master
+      command: >
+        pg_basebackup -h {{ hostvars['master']['ansible_postgresql_host'] }} -p {{ hostvars['master']['ansible_postgresql_port'] }} -U replicator -D /var/lib/postgresql/data -Fp -Xs -P -R
+      environment:
+        PGPASSWORD: "replpass"
+
+    - name: Fix ownership
+      file:
+        path: /var/lib/postgresql/data
+        owner: postgres
+        group: postgres
+        recurse: yes
+
+    - name: Create standby.signal
+      file:
+        path: /var/lib/postgresql/data/standby.signal
+        state: touch
+
+    - name: Create /run/postgresql directory
+      file:
+        path: /run/postgresql
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Start PostgreSQL (Alpine) in background
+      shell: |
+        su - postgres -c "postgres -D /var/lib/postgresql/data > /var/lib/postgresql/data/logfile 2>&1 &"
+        sleep 3
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Start PostgreSQL (Debian/Ubuntu)
+      service:
+        name: postgresql
+        state: started
+        enabled: yes
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Wait for PostgreSQL to become ready (Alpine)
+      command: su - postgres -c "pg_isready -h localhost -p 5432"
+      register: pgready
+      until: pgready.rc == 0
+      retries: 20
+      delay: 2
+      when: ansible_facts['os_family'] == "Alpine"
+
+- name: Deploy Telegram Bot
+  hosts: bot
+  become: yes
+  gather_facts: yes
+  tasks:
+    - name: Install Python and git (Alpine)
+      apk:
+        name:
+          - python3
+          - py3-pip
+          - git
+        state: present
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Install Python and git (Debian/Ubuntu)
+      package:
+        name:
+          - python3
+          - python3-pip
+          - git
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Copy bot code from host
+      copy:
+        src: /home/k3rnel_co0n/tg-linux-bot/
+        dest: /opt/bot
+        owner: ansible
+        group: ansible
+        mode: '0755'
+
+    - name: Create virtual environment and install Python deps (Alpine)
+      shell: |
+        cd /opt/bot
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+      args:
+        executable: /bin/sh
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Install Python deps (Debian/Ubuntu)
+      pip:
+        requirements: /opt/bot/requirements.txt
+        executable: pip3
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Create .env file with correct DB endpoints
+      copy:
+        dest: /opt/bot/.env
+        content: |
+          TOKEN={{ telegram_token }}
+          RM_HOST=127.0.0.1
+          RM_PORT=55555
+          RM_USER=k3rnel_co0n
+          RM_PASSWORD=ZXCursedGh0ul2
+          DB_USER=dbuser
+          DB_PASSWORD=dbpass
+          DB_HOST=master_db
+          DB_PORT=5432
+          DB_DATABASE=mydb
+          DB_REPL_USER=repluser
+          DB_REPL_PASSWORD=replpass
+          DB_REPL_HOST=replica_db
+          DB_REPL_PORT=5432
+          PG_HOST=master_db
+          PG_PORT=5432
+          PG_SLAVE_HOST=replica_db
+          PG_SLAVE_PORT=5432
+          PG_DB=db_customers
+          PG_USER=postgres
+          PG_PASSWORD=a1b2c3d4
+
+    - name: Start bot (Alpine) via nohup with venv
+      shell: |
+        cd /opt/bot
+        source venv/bin/activate
+        nohup python3 app/main.py > /opt/bot/nohup.out 2>&1 &
+      args:
+        executable: /bin/sh
+      when: ansible_facts['os_family'] == "Alpine"
+
+    - name: Start bot (Debian/Ubuntu) via nohup
+      shell: |
+        cd /opt/bot
+        nohup python3 main.py > /dev/null 2>&1 &
+      args:
+        executable: /bin/sh
+      when: ansible_facts['os_family'] == "Debian"

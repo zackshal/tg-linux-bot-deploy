@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  master_db:
+    image: linuxserver/openssh-server
+    container_name: host01
+    hostname: master
+    environment:
+      - USER_NAME=ansible
+      - USER_PASSWORD=ansible
+      - SUDO_ACCESS=true
+    ports:
+      - "2224:2222"
+      - "5434:5432"
+    restart: unless-stopped
+
+  replica_db:
+    image: linuxserver/openssh-server
+    container_name: host02
+    hostname: replica
+    environment:
+      - USER_NAME=ansible
+      - USER_PASSWORD=ansible
+      - SUDO_ACCESS=true
+    ports:
+      - "2223:2222"
+      - "5435:5432"
+    restart: unless-stopped
+
+  bot_host:
+    image: linuxserver/openssh-server
+    container_name: host03
+    hostname: bot
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+    environment:
+      - USER_NAME=ansible
+      - USER_PASSWORD=ansible
+      - SUDO_ACCESS=true
+    ports:
+      - "2225:2222"
+    restart: unless-stopped

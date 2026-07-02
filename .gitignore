@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual env
+venv/
+.env
+
+# Logs
+*.log
+logs/
+
+# Cache
+.mypy_cache/
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Archives
+*.zip
+*.tar.gz
+
+# Ansible
+*.retry
+infrastructure/ansible/*.retry
