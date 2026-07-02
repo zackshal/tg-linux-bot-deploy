@@ -197,14 +197,13 @@
         state: present
       when: ansible_facts['os_family'] == "Debian"
 
-    - name: Copy bot code from host
-      copy:
-        src: /home/k3rnel_co0n/tg-linux-bot/
+    - name: Clone bot code from GitHub
+      git:
+        repo: https://github.com/zackshal/tg-linux-bot-deploy.git
         dest: /opt/bot
-        owner: ansible
-        group: ansible
-        mode: '0755'
-
+        force: yes
+        version: main   
+        
     - name: Create virtual environment and install Python deps (Alpine)
       shell: |
         cd /opt/bot
