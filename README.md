@@ -284,7 +284,14 @@ tg-linux-bot/
    ```bash
    docker compose up -d
    ```
-
+4. Проверьте логи:
+   ```bash
+   docker compose logs -f bot
+   ```
+5. Остановка:
+   ```bash
+   docker compose down
+   ```
 Бот будет доступен внутри контейнера и будет использовать переменные из `.env`.
 
 ---
