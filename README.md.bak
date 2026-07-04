@@ -1,0 +1,150 @@
+# tg-linux-bot
+
+## 🚀 О проекте
+Проект представляет собой Telegram-бота на Python 3.13, который предоставляет возможности мониторинга Linux-серверов, поиска и валидации данных, а также работы с PostgreSQL.
+
+## 📝 Возможности
+- Мониторинг Linux-серверов через SSH
+- Поиск и валидация email-адресов и номеров телефонов
+- Работа с PostgreSQL
+
+## ⚡ Стек технологий
+| Технология | Версия |
+|-------------|---------|
+| Python      | 3.13    |
+| python-telegram-bot | 20.7 |
+| paramiko      | 3.4.0   |
+| psycopg2-binary | -       |
+| python-dotenv | -       |
+| pytest, pytest-asyncio | - |
+
+## 📜 Структура проекта (ветка main)
+```
+tg-linux-bot-deploy/
+│
+├── app/
+│   ├── main.py
+│   └── ... (другие файлы бота)
+│
+├── infrastructure/
+│   └── ... (файлы для инфраструктуры)
+│
+├── .env.example
+├── .gitignore
+├── LICENSE
+├── pyproject.toml
+├── README.md
+└── requirements.txt
+```
+
+## 🛠️ Быстрый старт
+
+### Локальный запуск
+1. Клонировать репозиторий и переключиться на ветку main:
+   ```
+   git clone https://github.com/zackshal/tg-linux-bot-deploy.git
+   cd tg-linux-bot-deploy
+   git checkout main
+   ```
+2. Создать виртуальное окружение и активировать:
+   ```
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+3. Установить зависимости:
+   ```
+   pip install -r requirements.txt
+   ```
+4. Создать файл .env из шаблона:
+   ```
+   cp .env.example .env
+   ```
+   Отредактировать .env, указав реальные значения.
+5. Запустить бота:
+   ```
+   python -m app.main
+   ```
+
+### Запуск в Docker (ветка docker)
+1. Переключиться на ветку docker:
+   ```
+   git checkout docker
+   ```
+2. Создать .env (аналогично шагу 4).
+3. Собрать и запустить контейнер:
+   ```
+   docker compose up -d
+   ```
+
+### Развёртывание всей инфраструктуры через Ansible (ветка ansible)
+1. Переключиться на ветку ansible:
+   ```
+   git checkout ansible
+   ```
+2. Поднять три контейнер-хоста (для локального тестирования):
+   ```
+   docker compose -f infrastructure/docker/docker-compose.yml up -d
+   ```
+3. Скопировать публичный SSH-ключ в каждый контейнер (если нет ключа — создать ssh-keygen -t ed25519):
+   ```
+   docker exec -it host01 bash -c "mkdir -p /config/.ssh && chmod 700 /config/.ssh"
+   docker cp ~/.ssh/id_ed25519.pub host01:/config/.ssh/authorized_keys
+   docker exec -it host01 bash -c "chown -R ansible:ansible /config/.ssh && chmod 600 /config/.ssh/authorized_keys"
+   # Повторить для host02 и host03 с портами 2223 и 2225 соответственно
+   ```
+4. Установить Python в каждом контейнере:
+   ```
+   docker exec host01 apk add python3
+   docker exec host02 apk add python3
+   docker exec host03 apk add python3
+   ```
+5. Перейти в папку с Ansible и запустить плейбук, передав токен:
+   ```
+   cd infrastructure/ansible
+   ansible-playbook -i inventory playbook_tg_bot.yml --extra-vars "telegram_token=ВАШ_ТОКЕН"
+   ```
+6. После успешного выполнения бот будет запущен на host03. Проверить логи:
+   ```
+   docker exec host03 tail -f /opt/bot/nohup.out
+   ```
+
+## 📝 Команды бота (полный список)
+### Мониторинг
+- /get_release — информация о релизе ОС
+- /get_uname — архитектура, хост, версия ядра
+- /get_uptime — время работы системы
+- /get_df — использование дисков
+- /get_free — оперативная память
+- /get_mpstat — загрузка CPU
+- /get_w — пользователи в системе
+- /get_auths — последние 10 входов
+- /get_critical — последние 5 критических событий (журнал)
+- /get_ps — список запущенных процессов
+- /get_ss — используемые порты
+- /get_services — запущенные сервисы
+- /get_apt_list — установленные пакеты (с возможностью поиска)
+
+### Поиск и валидация
+- /find_email — найти email-адреса в тексте
+- /find_phone_number — найти номера телефонов в тексте
+- /verify_password — проверить пароль на сложность
+
+### PostgreSQL
+- /get_repl_logs — логи репликации
+- /get_emails — список сохранённых email-адресов
+- /get_phone_numbers — список сохранённых номеров телефонов
+- /add_email — добавить email из текста
+- /add_phone — добавить телефон из тексте
+
+## 🛠️ Устранение типичных проблем
+| Проблема | Решение |
+|----------|---------|
+| Бот не запускается, ошибка `ModuleNotFoundError` | Проверьте, что виртуальное окружение активировано и установлены все зависимости: `pip install -r requirements.txt` |
+| Ошибка подключения к Telegram API (таймаут) | Проверьте доступ к интернету, попробуйте использовать VPN или Tor (в коде предусмотрена поддержка SOCKS5-прокси). |
+| SSH-подключение не работает | Убедитесь, что контейнеры запущены, порты проброшены, а SSH-ключ скопирован правильно. |
+| Ansible не видит хосты | Проверьте файл inventory — порты должны совпадать с проброшенными (2224, 2223, 2225). |
+| Ошибка репликации PostgreSQL | Проверьте, что мастер и реплика запущены, и в плейбуке указаны правильные имена хостов (master_db, replica_db). |
+
+## 📜 Лицензия и ссылки
+- Репозиторий: [https://github.com/zackshal/tg-linux-bot-deploy](https://github.com/zackshal/tg-linux-bot-deploy)
+- Лицензия: MIT (файл LICENSE в корне).
