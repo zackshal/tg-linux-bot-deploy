@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   master_db:
     image: linuxserver/openssh-server
@@ -9,10 +7,16 @@ services:
       - USER_NAME=ansible
       - USER_PASSWORD=ansible
       - SUDO_ACCESS=true
+      - PASSWORD_ACCESS=true
+      - PUBLIC_KEY=${PUBLIC_KEY}
     ports:
       - "2224:2222"
       - "5434:5432"
+    volumes:
+      - ../../.ssh/host01:/config/ssh_host_keys
     restart: unless-stopped
+    entrypoint: >
+      sh -c "apk add --no-cache python3 && exec /init"
 
   replica_db:
     image: linuxserver/openssh-server
@@ -22,22 +26,32 @@ services:
       - USER_NAME=ansible
       - USER_PASSWORD=ansible
       - SUDO_ACCESS=true
+      - PASSWORD_ACCESS=true
+      - PUBLIC_KEY=${PUBLIC_KEY}
     ports:
       - "2223:2222"
       - "5435:5432"
+    volumes:
+      - ../../.ssh/host02:/config/ssh_host_keys
     restart: unless-stopped
+    entrypoint: >
+      sh -c "apk add --no-cache python3 && exec /init"
 
   bot_host:
     image: linuxserver/openssh-server
     container_name: host03
     hostname: bot
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    network_mode: host
     environment:
       - USER_NAME=ansible
       - USER_PASSWORD=ansible
       - SUDO_ACCESS=true
+      - PASSWORD_ACCESS=true
+      - PUBLIC_KEY=${PUBLIC_KEY}
     ports:
       - "2225:2222"
+    volumes:
+      - ../../.ssh/host03:/config/ssh_host_keys
     restart: unless-stopped
+    entrypoint: >
+      sh -c "apk add --no-cache python3 && exec /init"

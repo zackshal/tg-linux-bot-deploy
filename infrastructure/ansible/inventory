@@ -1,11 +1,11 @@
 [master_db]
-master ansible_host=localhost ansible_port=2224 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/.ssh/id_ed25519 ansible_become_password=ansible ansible_postgresql_port=5432 ansible_postgresql_host=master_db
+master ansible_host=localhost ansible_port=2224 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/tg-linux-bot/.ssh/ansible/id_ed25519
 
 [replica_db]
-replica ansible_host=localhost ansible_port=2223 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/.ssh/id_ed25519 ansible_become_password=ansible
+replica ansible_host=localhost ansible_port=2223 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/tg-linux-bot/.ssh/ansible/id_ed25519
 
 [bot]
-bot ansible_host=localhost ansible_port=2225 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/.ssh/id_ed25519 ansible_become_password=ansible
+bot ansible_host=localhost ansible_port=2222 ansible_user=ansible ansible_ssh_private_key_file=/home/k3rnel_co0n/tg-linux-bot/.ssh/ansible/id_ed25519 ansible_become_password=ansible
 
 [all:vars]
 ansible_python_interpreter=/usr/bin/python3

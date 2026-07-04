@@ -250,7 +250,7 @@
       shell: |
         cd /opt/bot
         source venv/bin/activate
-        nohup python3 app/main.py > /opt/bot/nohup.out 2>&1 &
+        nohup python3 -m app.main > /opt/bot/nohup.out 2>&1 &
       args:
         executable: /bin/sh
       when: ansible_facts['os_family'] == "Alpine"
